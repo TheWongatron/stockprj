@@ -1,0 +1,709 @@
+"""
+Trend Following Trading Bot using Alpaca API
+
+Strategy:
+  - Downloads daily price data for a watchlist of 100 stocks
+  - Calculates 50-day (short) and 200-day (long) moving averages
+  - Ranks stocks by trend strength (short_MA - long_MA) using sorted ranking
+  - Detects MA crossovers by comparing current vs previous MAs
+  - Buys on golden cross (short MA crosses ABOVE long MA)
+  - Sells on death cross (short MA crosses BELOW long MA)
+
+Risk Controls:
+  - Max 100 shares per stock
+  - 3-day cooldown between trades per symbol
+  - Max 5 trades per day
+  - All activity logged for transparency
+
+Usage:
+  python trend_bot.py                        # Single run
+  python trend_bot.py --loop                 # Run every 60s continuously
+  python trend_bot.py --backtest             # Backtest 365 days
+  python trend_bot.py --backtest --days 730  # Backtest 2 years
+"""
+
+import os
+import sys
+import json
+import time
+import logging
+from datetime import datetime, timedelta
+from dataclasses import dataclass, field
+from typing import Optional
+from sortedcontainers import SortedList
+
+from alpaca.trading.client import TradingClient
+from alpaca.trading.requests import MarketOrderRequest
+from alpaca.trading.enums import OrderSide, TimeInForce
+from alpaca.data.historical import StockHistoricalDataClient
+from alpaca.data.requests import StockBarsRequest
+from alpaca.data.timeframe import TimeFrame
+
+
+# =============================================================================
+# CONFIGURATION
+# =============================================================================
+
+@dataclass
+class BotConfig:
+
+    # Alpaca credentials
+    api_key: str = os.getenv("ALPACA_API_KEY", "PKRMNOYVRXY46I7TLYYWR7SGX7")
+    secret_key: str = os.getenv("ALPACA_SECRET_KEY", "GkBYfmutv6fJ4qQam4Zr1scbbEyCqNHxBtcoasWe314S")
+    paper_trading: bool = True
+
+    # Watchlist — 100 high-volume stocks
+    symbols: list[str] = field(default_factory=lambda: [
+        # Tech
+        "AAPL", "MSFT", "NVDA", "AMD", "TSLA", "GOOG", "AMZN", "META", "NFLX", "PLTR",
+        "AVGO", "CRM", "ORCL", "ADBE", "INTC", "QCOM", "MU", "ANET", "NOW", "SHOP",
+        "UBER", "SQ", "COIN", "SNOW", "PANW", "CRWD", "DDOG", "NET", "ZS", "MRVL",
+        # Finance
+        "JPM", "GS", "MS", "BAC", "V", "MA", "BLK", "C", "WFC", "AXP",
+        "PYPL", "SOFI", "SCHW", "CME", "ICE",
+        # Healthcare
+        "UNH", "JNJ", "LLY", "PFE", "ABBV", "MRK", "TMO", "ABT", "BMY", "GILD",
+        "AMGN", "VRTX", "REGN", "ISRG", "MDT",
+        # Consumer
+        "WMT", "COST", "HD", "NKE", "SBUX", "MCD", "KO", "PEP", "PG", "CL",
+        "TGT", "LOW", "TJX", "ROST", "DG",
+        # Industrial / Energy
+        "XOM", "CVX", "CAT", "BA", "GE", "UPS", "DE", "LMT", "RTX", "HON",
+        "UNP", "FDX", "SLB", "COP", "EOG",
+        # Media / Telecom
+        "DIS", "CMCSA", "T", "VZ", "TMUS",
+        # EV / Growth
+        "RIVN", "LCID", "NIO", "LI", "XPEV",
+        # Misc high-volume
+        "ABNB", "RBLX", "U", "ROKU", "DASH",
+    ])
+
+    # Risk controls
+    max_shares_per_stock: int = 100
+    cooldown_days: int = 0          # No cooldown — trade whenever signal fires
+    max_trades_per_day: int = 50    # Allow many trades per day
+
+    # Moving average periods (fast for active trading)
+    short_ma_period: int = 5
+    long_ma_period: int = 20
+    min_data_points: int = 25  # Need at least this many prices
+
+    # Operational
+    lookback_days: int = 60     # Calendar days to fetch
+    state_file: str = "bot_state.json"
+    log_file: str = "bot.log"
+    dry_run: bool = False
+    loop_interval_seconds: int = 60
+    backtest_days: int = 365
+
+
+# =============================================================================
+# LOGGING
+# =============================================================================
+
+def setup_logging(log_file: str) -> logging.Logger:
+    logger = logging.getLogger("trend_bot")
+    if logger.handlers:
+        return logger
+    logger.setLevel(logging.DEBUG)
+
+    fmt = logging.Formatter(
+        "%(asctime)s | %(levelname)-8s | %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setLevel(logging.INFO)
+    ch.setFormatter(fmt)
+    logger.addHandler(ch)
+
+    fh = logging.FileHandler(log_file, encoding="utf-8")
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(fmt)
+    logger.addHandler(fh)
+
+    return logger
+
+
+# =============================================================================
+# STATE MANAGEMENT
+# =============================================================================
+
+def load_state(path: str) -> dict:
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            return json.load(f)
+    return {}
+
+
+def save_state(state: dict, path: str) -> None:
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(state, f, indent=2)
+    os.replace(tmp, path)
+
+
+# =============================================================================
+# INDICATORS
+# =============================================================================
+
+def calculate_ma(prices: list[float], period: int) -> Optional[float]:
+    """Simple moving average of last `period` prices."""
+    if len(prices) < period:
+        return None
+    return sum(prices[-period:]) / period
+
+
+def calculate_previous_ma(prices: list[float], period: int) -> Optional[float]:
+    """Moving average of prices from -(period+1) to -2 (the previous bar's MA)."""
+    if len(prices) < period + 1:
+        return None
+    window = prices[-(period + 1):-1]
+    return sum(window) / period
+
+
+# =============================================================================
+# DATA FETCHING
+# =============================================================================
+
+def fetch_daily_prices(
+    data_client: StockHistoricalDataClient,
+    symbol: str,
+    lookback_days: int,
+    logger: logging.Logger,
+) -> list[float]:
+    """Fetch daily closing prices. Returns list oldest-to-newest."""
+    end = datetime.now()
+    start = end - timedelta(days=lookback_days)
+
+    try:
+        request = StockBarsRequest(
+            symbol_or_symbols=symbol,
+            timeframe=TimeFrame.Day,
+            start=start,
+            end=end,
+        )
+        bars = data_client.get_stock_bars(request)
+    except Exception as exc:
+        logger.error("%s — fetch failed: %s", symbol, exc)
+        return []
+
+    try:
+        bar_list = bars[symbol]
+    except (KeyError, IndexError):
+        return []
+
+    if not bar_list:
+        return []
+
+    prices = [float(b.close) for b in bar_list]
+    logger.debug("%s — %d daily bars, latest $%.2f", symbol, len(prices), prices[-1])
+    return prices
+
+
+# =============================================================================
+# PORTFOLIO HELPERS
+# =============================================================================
+
+def get_position_qty(trading_client: TradingClient, symbol: str) -> int:
+    try:
+        pos = trading_client.get_open_position(symbol)
+        return int(float(pos.qty))
+    except Exception:
+        return 0
+
+
+def get_buying_power(trading_client: TradingClient) -> float:
+    account = trading_client.get_account()
+    return float(account.buying_power)
+
+
+def get_portfolio_value(trading_client: TradingClient) -> float:
+    account = trading_client.get_account()
+    return float(account.portfolio_value)
+
+
+# =============================================================================
+# ORDER EXECUTION
+# =============================================================================
+
+def place_order(
+    trading_client: TradingClient,
+    symbol: str,
+    qty: int,
+    side: OrderSide,
+    dry_run: bool,
+    logger: logging.Logger,
+) -> Optional[str]:
+    action = "BUY" if side == OrderSide.BUY else "SELL"
+
+    if dry_run:
+        logger.info("[DRY RUN] %s %d x %s", action, qty, symbol)
+        return "dry-run"
+
+    request = MarketOrderRequest(
+        symbol=symbol,
+        qty=qty,
+        side=side,
+        time_in_force=TimeInForce.DAY,
+    )
+
+    try:
+        order = trading_client.submit_order(request)
+        logger.info("ORDER %s %d x %s — ID %s", action, qty, symbol, order.id)
+        return str(order.id)
+    except Exception as exc:
+        logger.error("ORDER FAILED %s %d x %s — %s", action, qty, symbol, exc)
+        return None
+
+
+# =============================================================================
+# CORE STRATEGY (matches pseudocode)
+# =============================================================================
+
+def run_strategy(
+    cfg: BotConfig,
+    trading_client: TradingClient,
+    data_client: StockHistoricalDataClient,
+    state: dict,
+    logger: logging.Logger,
+) -> None:
+    """
+    Trend-following strategy:
+    1. Fetch prices, archive in state
+    2. Calculate short MA (50), long MA (200), previous MAs
+    3. Rank by trend strength (short_MA - long_MA) — BST ordering
+    4. Buy on golden cross, sell on death cross
+    5. Enforce cooldown + max trades per day
+    """
+
+    current_day = datetime.now().strftime("%Y-%m-%d")
+    price_data = state.get("price_data", {})
+    last_trade_day = state.get("last_trade_day", {})
+    trade_log = state.get("trade_log", [])
+    trades_today = 0
+
+    # Count trades already made today
+    for entry in trade_log:
+        if entry.get("date") == current_day:
+            trades_today += 1
+
+    logger.info("=" * 70)
+    logger.info("Trend Following Bot | %s | %d symbols | Trades today: %d/%d",
+                datetime.now().strftime("%H:%M:%S"), len(cfg.symbols),
+                trades_today, cfg.max_trades_per_day)
+    logger.info("=" * 70)
+
+    # ---- Phase 1: Data collection + indicator calculation ----
+    # Using SortedList as BST equivalent — stores (trend_score, symbol) sorted by score
+    ranked_stocks = SortedList(key=lambda x: -x[0])  # Descending by trend score
+
+    # Store computed indicators for the decision phase
+    indicators = {}
+
+    for symbol in cfg.symbols:
+        # 1) Retrieve new price data
+        prices = fetch_daily_prices(data_client, symbol, cfg.lookback_days, logger)
+
+        if not prices:
+            continue
+
+        # Archive price data (keep last 250 to avoid bloat)
+        price_data[symbol] = prices[-250:]
+
+        # 2) Ensure enough data exists
+        if len(price_data[symbol]) < cfg.min_data_points:
+            logger.debug("%s: Not enough data (%d/%d) — skipping",
+                         symbol, len(price_data[symbol]), cfg.min_data_points)
+            continue
+
+        # 3) Compute moving averages
+        short_ma = calculate_ma(price_data[symbol], cfg.short_ma_period)
+        long_ma = calculate_ma(price_data[symbol], cfg.long_ma_period)
+
+        previous_short_ma = calculate_previous_ma(price_data[symbol], cfg.short_ma_period)
+        previous_long_ma = calculate_previous_ma(price_data[symbol], cfg.long_ma_period)
+
+        if any(v is None for v in [short_ma, long_ma, previous_short_ma, previous_long_ma]):
+            continue
+
+        # 4) Calculate trend strength score
+        trend_score = short_ma - long_ma
+
+        # 5) Insert into BST (SortedList) for ranking
+        ranked_stocks.add((trend_score, symbol))
+
+        # Store for decision phase
+        indicators[symbol] = {
+            "short_ma": short_ma,
+            "long_ma": long_ma,
+            "previous_short_ma": previous_short_ma,
+            "previous_long_ma": previous_long_ma,
+            "trend_score": trend_score,
+            "price": price_data[symbol][-1],
+        }
+
+    # Save archived price data
+    state["price_data"] = price_data
+
+    if not ranked_stocks:
+        logger.info("No symbols with enough data to evaluate")
+        return
+
+    # Log top 10 ranked stocks
+    logger.info("-" * 70)
+    logger.info("TREND RANKING (top 20):")
+    for i, (score, symbol) in enumerate(ranked_stocks[:20], 1):
+        ind = indicators[symbol]
+        logger.info(
+            "  #%2d %-5s | Trend %+8.2f | MA50 $%.2f | MA200 $%.2f | Price $%.2f",
+            i, symbol, score, ind["short_ma"], ind["long_ma"], ind["price"],
+        )
+    logger.info("-" * 70)
+
+    # ---- Phase 2: Decision-making (highest trend first) ----
+    for trend_score, symbol in ranked_stocks:
+
+        # Max trades per day check
+        if trades_today >= cfg.max_trades_per_day:
+            logger.info("Max trades per day reached (%d) — stopping", cfg.max_trades_per_day)
+            break
+
+        # Cooldown check
+        last_trade = last_trade_day.get(symbol)
+        if last_trade:
+            days_since = (datetime.strptime(current_day, "%Y-%m-%d") -
+                          datetime.strptime(last_trade, "%Y-%m-%d")).days
+            if days_since < cfg.cooldown_days:
+                logger.debug("%s: Cooldown — %d day(s) remaining",
+                             symbol, cfg.cooldown_days - days_since)
+                continue
+
+        ind = indicators[symbol]
+        short_ma = ind["short_ma"]
+        long_ma = ind["long_ma"]
+        previous_short_ma = ind["previous_short_ma"]
+        previous_long_ma = ind["previous_long_ma"]
+        price = ind["price"]
+
+        shares_held = get_position_qty(trading_client, symbol)
+
+        # ---- BUY: Golden cross detected ----
+        # Previous: short <= long | Current: short > long
+        if shares_held == 0:
+            if previous_short_ma <= previous_long_ma and short_ma > long_ma:
+
+                # Check buying power
+                cost = cfg.max_shares_per_stock * price
+                buying_power = get_buying_power(trading_client)
+
+                if cost > buying_power:
+                    affordable = int(buying_power // price)
+                    if affordable <= 0:
+                        logger.warning("%s: BUY signal but no buying power ($%.2f)",
+                                       symbol, buying_power)
+                        continue
+                    qty = affordable
+                else:
+                    qty = cfg.max_shares_per_stock
+
+                logger.info(
+                    "BUY  %-5s | %d shares @ $%.2f | MA50 $%.2f crossed above MA200 $%.2f | Trend %+.2f",
+                    symbol, qty, price, short_ma, long_ma, trend_score,
+                )
+
+                order_id = place_order(trading_client, symbol, qty, OrderSide.BUY,
+                                       cfg.dry_run, logger)
+                if order_id:
+                    last_trade_day[symbol] = current_day
+                    trades_today += 1
+                    trade_log.append({
+                        "action": "BUY",
+                        "symbol": symbol,
+                        "qty": qty,
+                        "price": price,
+                        "short_ma": round(short_ma, 2),
+                        "long_ma": round(long_ma, 2),
+                        "trend_score": round(trend_score, 2),
+                        "date": current_day,
+                        "time": datetime.now().strftime("%H:%M:%S"),
+                    })
+
+        # ---- SELL: Death cross detected ----
+        # Previous: short >= long | Current: short < long
+        elif shares_held > 0:
+            if previous_short_ma >= previous_long_ma and short_ma < long_ma:
+
+                # Calculate P&L
+                buy_entries = [t for t in trade_log
+                               if t["symbol"] == symbol and t["action"] == "BUY"]
+                entry_price = buy_entries[-1]["price"] if buy_entries else price
+                pnl = (price - entry_price) * shares_held
+                pnl_pct = ((price - entry_price) / entry_price) * 100 if entry_price > 0 else 0
+
+                logger.info(
+                    "SELL %-5s | %d shares @ $%.2f | MA50 $%.2f crossed below MA200 $%.2f | P&L $%.2f (%.1f%%)",
+                    symbol, shares_held, price, short_ma, long_ma, pnl, pnl_pct,
+                )
+
+                order_id = place_order(trading_client, symbol, shares_held, OrderSide.SELL,
+                                       cfg.dry_run, logger)
+                if order_id:
+                    last_trade_day[symbol] = current_day
+                    trades_today += 1
+                    trade_log.append({
+                        "action": "SELL",
+                        "symbol": symbol,
+                        "qty": shares_held,
+                        "price": price,
+                        "short_ma": round(short_ma, 2),
+                        "long_ma": round(long_ma, 2),
+                        "trend_score": round(trend_score, 2),
+                        "pnl": round(pnl, 2),
+                        "pnl_pct": round(pnl_pct, 2),
+                        "date": current_day,
+                        "time": datetime.now().strftime("%H:%M:%S"),
+                    })
+
+    # Save state
+    state["last_trade_day"] = last_trade_day
+    state["trade_log"] = trade_log[-500:]  # Keep last 500 log entries
+
+    # ---- Phase 3: Output portfolio status + trade log ----
+    logger.info("=" * 70)
+    logger.info("PORTFOLIO STATUS:")
+
+    portfolio_value = get_portfolio_value(trading_client)
+    buying_power = get_buying_power(trading_client)
+    logger.info("  Portfolio value: $%.2f", portfolio_value)
+    logger.info("  Buying power:    $%.2f", buying_power)
+    logger.info("  Trades today:    %d/%d", trades_today, cfg.max_trades_per_day)
+
+    # Show open positions
+    try:
+        positions = trading_client.get_all_positions()
+        if positions:
+            logger.info("  Open positions:")
+            for pos in positions:
+                unrealized = float(pos.unrealized_pl)
+                logger.info(
+                    "    %-5s | %s shares @ $%s | P&L $%.2f",
+                    pos.symbol, pos.qty, pos.avg_entry_price, unrealized,
+                )
+        else:
+            logger.info("  No open positions")
+    except Exception:
+        pass
+
+    # Recent trades
+    today_trades = [t for t in trade_log if t.get("date") == current_day]
+    if today_trades:
+        logger.info("  Today's trades:")
+        for t in today_trades:
+            logger.info("    %s %s %d @ $%.2f", t["action"], t["symbol"], t["qty"], t["price"])
+
+    logger.info("Run complete")
+    logger.info("=" * 70)
+
+
+# =============================================================================
+# BACKTESTING
+# =============================================================================
+
+def run_backtest(cfg: BotConfig, logger: logging.Logger) -> None:
+    logger.info("=" * 70)
+    logger.info("BACKTEST — %d days — MA%d/MA%d crossover",
+                cfg.backtest_days, cfg.short_ma_period, cfg.long_ma_period)
+    logger.info("=" * 70)
+
+    data_client = StockHistoricalDataClient(cfg.api_key, cfg.secret_key)
+
+    # Fetch all data
+    all_prices = {}
+    for symbol in cfg.symbols:
+        prices = fetch_daily_prices(data_client, symbol,
+                                     cfg.backtest_days + cfg.lookback_days, logger)
+        if len(prices) >= cfg.min_data_points + 10:
+            all_prices[symbol] = prices
+            logger.info("%s — %d bars loaded", symbol, len(prices))
+
+    if not all_prices:
+        logger.error("No symbols with enough data")
+        return
+
+    # Simulate
+    cash = 100000.0
+    portfolio = {sym: 0 for sym in all_prices}
+    entry_prices = {}
+    last_trade_day_bt = {sym: -999 for sym in all_prices}
+    trade_log = []
+    max_equity = cash
+    max_drawdown = 0.0
+
+    min_len = min(len(v) for v in all_prices.values())
+
+    for day in range(cfg.min_data_points, min_len):
+        trades_today = 0
+
+        # Build ranking
+        ranked = SortedList(key=lambda x: -x[0])
+        indicators = {}
+
+        for symbol in all_prices:
+            prices = all_prices[symbol][:day + 1]
+
+            if len(prices) < cfg.min_data_points:
+                continue
+
+            short_ma = calculate_ma(prices, cfg.short_ma_period)
+            long_ma = calculate_ma(prices, cfg.long_ma_period)
+            prev_short = calculate_previous_ma(prices, cfg.short_ma_period)
+            prev_long = calculate_previous_ma(prices, cfg.long_ma_period)
+
+            if any(v is None for v in [short_ma, long_ma, prev_short, prev_long]):
+                continue
+
+            trend = short_ma - long_ma
+            ranked.add((trend, symbol))
+            indicators[symbol] = {
+                "short_ma": short_ma, "long_ma": long_ma,
+                "prev_short": prev_short, "prev_long": prev_long,
+                "price": prices[-1],
+            }
+
+        # Trade
+        for trend_score, symbol in ranked:
+            if trades_today >= cfg.max_trades_per_day:
+                break
+            if day - last_trade_day_bt[symbol] < cfg.cooldown_days:
+                continue
+
+            ind = indicators[symbol]
+            price = ind["price"]
+            shares = portfolio[symbol]
+
+            # BUY — golden cross
+            if shares == 0:
+                if ind["prev_short"] <= ind["prev_long"] and ind["short_ma"] > ind["long_ma"]:
+                    qty = cfg.max_shares_per_stock
+                    cost = qty * price
+                    if cost <= cash:
+                        cash -= cost
+                        portfolio[symbol] = qty
+                        entry_prices[symbol] = price
+                        last_trade_day_bt[symbol] = day
+                        trades_today += 1
+                        trade_log.append({"side": "BUY", "symbol": symbol,
+                                          "price": price, "qty": qty, "day": day})
+
+            # SELL — death cross
+            elif shares > 0:
+                if ind["prev_short"] >= ind["prev_long"] and ind["short_ma"] < ind["long_ma"]:
+                    cash += shares * price
+                    pnl = (price - entry_prices.get(symbol, price)) * shares
+                    portfolio[symbol] = 0
+                    last_trade_day_bt[symbol] = day
+                    trades_today += 1
+                    trade_log.append({"side": "SELL", "symbol": symbol,
+                                      "price": price, "qty": shares,
+                                      "pnl": round(pnl, 2), "day": day})
+
+        # Track equity / drawdown
+        equity = cash + sum(portfolio[s] * all_prices[s][day] for s in all_prices if portfolio[s] > 0)
+        max_equity = max(max_equity, equity)
+        dd = (max_equity - equity) / max_equity
+        max_drawdown = max(max_drawdown, dd)
+
+    # Close remaining
+    for symbol in all_prices:
+        if portfolio[symbol] > 0:
+            final_price = all_prices[symbol][-1]
+            pnl = (final_price - entry_prices.get(symbol, final_price)) * portfolio[symbol]
+            cash += portfolio[symbol] * final_price
+            trade_log.append({"side": "SELL", "symbol": symbol, "price": final_price,
+                              "qty": portfolio[symbol], "pnl": round(pnl, 2), "day": min_len - 1})
+            portfolio[symbol] = 0
+
+    # Stats
+    sell_trades = [t for t in trade_log if t["side"] == "SELL"]
+    wins = len([t for t in sell_trades if t.get("pnl", 0) > 0])
+    losses = len([t for t in sell_trades if t.get("pnl", 0) <= 0])
+    total_pnl = sum(t.get("pnl", 0) for t in sell_trades)
+    ret = ((cash - 100000) / 100000) * 100
+    wr = (wins / (wins + losses) * 100) if (wins + losses) > 0 else 0
+
+    logger.info("=" * 70)
+    logger.info("BACKTEST RESULTS")
+    logger.info("=" * 70)
+    logger.info("  Starting cash:    $100,000")
+    logger.info("  Final value:      $%.2f", cash)
+    logger.info("  Return:           %.2f%%", ret)
+    logger.info("  Max drawdown:     %.2f%%", max_drawdown * 100)
+    logger.info("  Total trades:     %d buys, %d sells",
+                len(trade_log) - len(sell_trades), len(sell_trades))
+    logger.info("  Win rate:         %.0f%% (%dW / %dL)", wr, wins, losses)
+    logger.info("  Total P&L:        $%.2f", total_pnl)
+    logger.info("=" * 70)
+
+    # Per-symbol breakdown (top 10 by P&L)
+    sym_pnl = {}
+    for t in sell_trades:
+        sym_pnl[t["symbol"]] = sym_pnl.get(t["symbol"], 0) + t.get("pnl", 0)
+
+    sorted_syms = sorted(sym_pnl.items(), key=lambda x: x[1], reverse=True)
+    logger.info("TOP PERFORMERS:")
+    for sym, pnl in sorted_syms[:10]:
+        logger.info("  %-5s  $%.2f", sym, pnl)
+    if sorted_syms:
+        logger.info("WORST PERFORMERS:")
+        for sym, pnl in sorted_syms[-5:]:
+            logger.info("  %-5s  $%.2f", sym, pnl)
+
+
+# =============================================================================
+# MAIN
+# =============================================================================
+
+def run(cfg: Optional[BotConfig] = None) -> None:
+    cfg = cfg or BotConfig()
+    logger = setup_logging(cfg.log_file)
+
+    if not cfg.api_key or not cfg.secret_key:
+        logger.error("Set ALPACA_API_KEY and ALPACA_SECRET_KEY")
+        sys.exit(1)
+
+    # Backtest mode
+    if "--backtest" in sys.argv:
+        if "--days" in sys.argv:
+            idx = sys.argv.index("--days")
+            if idx + 1 < len(sys.argv):
+                cfg.backtest_days = int(sys.argv[idx + 1])
+        run_backtest(cfg, logger)
+        return
+
+    loop_mode = "--loop" in sys.argv
+
+    trading_client = TradingClient(cfg.api_key, cfg.secret_key, paper=cfg.paper_trading)
+    data_client = StockHistoricalDataClient(cfg.api_key, cfg.secret_key)
+
+    while True:
+        state = load_state(cfg.state_file)
+
+        try:
+            run_strategy(cfg, trading_client, data_client, state, logger)
+        except Exception:
+            logger.exception("Strategy error")
+
+        save_state(state, cfg.state_file)
+
+        if not loop_mode:
+            break
+
+        logger.info("Sleeping %ds...", cfg.loop_interval_seconds)
+        time.sleep(cfg.loop_interval_seconds)
+
+    logger.info("Done.")
+
+
+if __name__ == "__main__":
+    run()

@@ -1,0 +1,143 @@
+2026-02-17 14:02:54 | INFO     | ======================================================================
+2026-02-17 14:02:54 | INFO     | Trend Following Bot | 14:02:54 | 105 symbols | Trades today: 0/50
+2026-02-17 14:02:54 | INFO     | ======================================================================
+2026-02-17 14:02:55 | DEBUG    | AAPL — 38 daily bars, latest $265.39
+2026-02-17 14:02:55 | DEBUG    | MSFT — 38 daily bars, latest $397.15
+2026-02-17 14:02:55 | DEBUG    | NVDA — 38 daily bars, latest $186.15
+2026-02-17 14:02:55 | DEBUG    | AMD — 38 daily bars, latest $204.20
+2026-02-17 14:02:55 | DEBUG    | TSLA — 38 daily bars, latest $411.50
+2026-02-17 14:02:55 | DEBUG    | GOOG — 38 daily bars, latest $302.75
+2026-02-17 14:02:55 | DEBUG    | AMZN — 38 daily bars, latest $201.13
+2026-02-17 14:02:55 | DEBUG    | META — 38 daily bars, latest $641.03
+2026-02-17 14:02:55 | DEBUG    | NFLX — 38 daily bars, latest $77.05
+2026-02-17 14:02:55 | DEBUG    | PLTR — 38 daily bars, latest $133.58
+2026-02-17 14:02:56 | DEBUG    | AVGO — 38 daily bars, latest $334.13
+2026-02-17 14:02:56 | DEBUG    | CRM — 38 daily bars, latest $184.07
+2026-02-17 14:02:56 | DEBUG    | ORCL — 38 daily bars, latest $153.89
+2026-02-17 14:02:56 | DEBUG    | ADBE — 38 daily bars, latest $260.59
+2026-02-17 14:02:56 | DEBUG    | INTC — 38 daily bars, latest $46.59
+2026-02-17 14:02:56 | DEBUG    | QCOM — 38 daily bars, latest $143.21
+2026-02-17 14:02:56 | DEBUG    | MU — 38 daily bars, latest $403.50
+2026-02-17 14:02:56 | DEBUG    | ANET — 38 daily bars, latest $143.92
+2026-02-17 14:02:56 | DEBUG    | NOW — 38 daily bars, latest $105.94
+2026-02-17 14:02:56 | DEBUG    | SHOP — 38 daily bars, latest $113.28
+2026-02-17 14:02:56 | DEBUG    | UBER — 38 daily bars, latest $70.62
+2026-02-17 14:02:56 | DEBUG    | COIN — 38 daily bars, latest $167.81
+2026-02-17 14:02:56 | DEBUG    | SNOW — 38 daily bars, latest $175.05
+2026-02-17 14:02:56 | DEBUG    | PANW — 38 daily bars, latest $163.29
+2026-02-17 14:02:56 | DEBUG    | CRWD — 38 daily bars, latest $411.42
+2026-02-17 14:02:56 | DEBUG    | DDOG — 38 daily bars, latest $122.74
+2026-02-17 14:02:56 | DEBUG    | NET — 38 daily bars, latest $191.99
+2026-02-17 14:02:56 | DEBUG    | ZS — 38 daily bars, latest $171.53
+2026-02-17 14:02:57 | DEBUG    | MRVL — 38 daily bars, latest $79.50
+2026-02-17 14:02:57 | DEBUG    | JPM — 38 daily bars, latest $307.44
+2026-02-17 14:02:57 | DEBUG    | GS — 38 daily bars, latest $917.74
+2026-02-17 14:02:57 | DEBUG    | MS — 38 daily bars, latest $171.69
+2026-02-17 14:02:57 | DEBUG    | BAC — 38 daily bars, latest $52.85
+2026-02-17 14:02:57 | DEBUG    | V — 38 daily bars, latest $319.89
+2026-02-17 14:02:57 | DEBUG    | MA — 38 daily bars, latest $521.29
+2026-02-17 14:02:57 | DEBUG    | BLK — 38 daily bars, latest $1076.96
+2026-02-17 14:02:57 | DEBUG    | C — 38 daily bars, latest $114.16
+2026-02-17 14:02:57 | DEBUG    | WFC — 38 daily bars, latest $87.96
+2026-02-17 14:02:57 | DEBUG    | AXP — 38 daily bars, latest $345.60
+2026-02-17 14:02:57 | DEBUG    | PYPL — 38 daily bars, latest $41.13
+2026-02-17 14:02:57 | DEBUG    | SOFI — 38 daily bars, latest $19.70
+2026-02-17 14:02:57 | DEBUG    | SCHW — 38 daily bars, latest $93.29
+2026-02-17 14:02:57 | DEBUG    | CME — 38 daily bars, latest $303.96
+2026-02-17 14:02:57 | DEBUG    | ICE — 38 daily bars, latest $153.73
+2026-02-17 14:02:57 | DEBUG    | UNH — 38 daily bars, latest $290.85
+2026-02-17 14:02:57 | DEBUG    | JNJ — 38 daily bars, latest $243.70
+2026-02-17 14:02:58 | DEBUG    | LLY — 38 daily bars, latest $1042.16
+2026-02-17 14:02:58 | DEBUG    | PFE — 38 daily bars, latest $27.41
+2026-02-17 14:02:58 | DEBUG    | ABBV — 38 daily bars, latest $233.54
+2026-02-17 14:02:58 | DEBUG    | MRK — 38 daily bars, latest $121.83
+2026-02-17 14:02:58 | DEBUG    | TMO — 38 daily bars, latest $503.73
+2026-02-17 14:02:58 | DEBUG    | ABT — 38 daily bars, latest $112.34
+2026-02-17 14:02:58 | DEBUG    | BMY — 38 daily bars, latest $60.24
+2026-02-17 14:02:58 | DEBUG    | GILD — 38 daily bars, latest $154.79
+2026-02-17 14:02:58 | DEBUG    | AMGN — 38 daily bars, latest $374.00
+2026-02-17 14:02:58 | DEBUG    | VRTX — 38 daily bars, latest $477.95
+2026-02-17 14:02:58 | DEBUG    | REGN — 38 daily bars, latest $790.25
+2026-02-17 14:02:58 | DEBUG    | ISRG — 38 daily bars, latest $494.22
+2026-02-17 14:02:58 | DEBUG    | MDT — 38 daily bars, latest $96.96
+2026-02-17 14:02:58 | DEBUG    | WMT — 38 daily bars, latest $128.61
+2026-02-17 14:02:58 | DEBUG    | COST — 38 daily bars, latest $1013.51
+2026-02-17 14:02:58 | DEBUG    | HD — 38 daily bars, latest $382.30
+2026-02-17 14:02:58 | DEBUG    | NKE — 38 daily bars, latest $64.47
+2026-02-17 14:02:58 | DEBUG    | SBUX — 38 daily bars, latest $95.12
+2026-02-17 14:02:58 | DEBUG    | MCD — 38 daily bars, latest $326.37
+2026-02-17 14:02:59 | DEBUG    | KO — 38 daily bars, latest $79.31
+2026-02-17 14:02:59 | DEBUG    | PEP — 38 daily bars, latest $161.06
+2026-02-17 14:02:59 | DEBUG    | PG — 38 daily bars, latest $159.49
+2026-02-17 14:02:59 | DEBUG    | CL — 38 daily bars, latest $95.68
+2026-02-17 14:02:59 | DEBUG    | TGT — 38 daily bars, latest $115.69
+2026-02-17 14:02:59 | DEBUG    | LOW — 38 daily bars, latest $281.12
+2026-02-17 14:02:59 | DEBUG    | TJX — 38 daily bars, latest $155.30
+2026-02-17 14:02:59 | DEBUG    | ROST — 38 daily bars, latest $197.41
+2026-02-17 14:02:59 | DEBUG    | DG — 38 daily bars, latest $149.71
+2026-02-17 14:02:59 | DEBUG    | XOM — 38 daily bars, latest $145.64
+2026-02-17 14:02:59 | DEBUG    | CVX — 38 daily bars, latest $180.76
+2026-02-17 14:02:59 | DEBUG    | CAT — 38 daily bars, latest $765.16
+2026-02-17 14:02:59 | DEBUG    | BA — 38 daily bars, latest $244.22
+2026-02-17 14:02:59 | DEBUG    | GE — 38 daily bars, latest $327.69
+2026-02-17 14:02:59 | DEBUG    | UPS — 38 daily bars, latest $115.89
+2026-02-17 14:02:59 | DEBUG    | DE — 38 daily bars, latest $604.77
+2026-02-17 14:02:59 | DEBUG    | LMT — 38 daily bars, latest $650.73
+2026-02-17 14:02:59 | DEBUG    | RTX — 38 daily bars, latest $203.61
+2026-02-17 14:02:59 | DEBUG    | HON — 38 daily bars, latest $244.13
+2026-02-17 14:03:00 | DEBUG    | UNP — 38 daily bars, latest $263.40
+2026-02-17 14:03:00 | DEBUG    | FDX — 38 daily bars, latest $376.46
+2026-02-17 14:03:00 | DEBUG    | SLB — 38 daily bars, latest $49.80
+2026-02-17 14:03:00 | DEBUG    | COP — 38 daily bars, latest $109.04
+2026-02-17 14:03:00 | DEBUG    | EOG — 38 daily bars, latest $119.59
+2026-02-17 14:03:00 | DEBUG    | DIS — 38 daily bars, latest $105.64
+2026-02-17 14:03:00 | DEBUG    | CMCSA — 38 daily bars, latest $31.90
+2026-02-17 14:03:00 | DEBUG    | T — 38 daily bars, latest $28.77
+2026-02-17 14:03:00 | DEBUG    | VZ — 38 daily bars, latest $49.10
+2026-02-17 14:03:00 | DEBUG    | TMUS — 38 daily bars, latest $220.21
+2026-02-17 14:03:00 | DEBUG    | RIVN — 38 daily bars, latest $16.70
+2026-02-17 14:03:00 | DEBUG    | LCID — 38 daily bars, latest $9.92
+2026-02-17 14:03:00 | DEBUG    | NIO — 38 daily bars, latest $4.96
+2026-02-17 14:03:00 | DEBUG    | LI — 38 daily bars, latest $18.36
+2026-02-17 14:03:00 | DEBUG    | XPEV — 38 daily bars, latest $17.89
+2026-02-17 14:03:00 | DEBUG    | ABNB — 38 daily bars, latest $125.31
+2026-02-17 14:03:00 | DEBUG    | RBLX — 38 daily bars, latest $63.39
+2026-02-17 14:03:00 | DEBUG    | U — 38 daily bars, latest $18.57
+2026-02-17 14:03:00 | DEBUG    | ROKU — 38 daily bars, latest $89.61
+2026-02-17 14:03:01 | DEBUG    | DASH — 38 daily bars, latest $163.67
+2026-02-17 14:03:01 | INFO     | ----------------------------------------------------------------------
+2026-02-17 14:03:01 | INFO     | TREND RANKING (top 20):
+2026-02-17 14:03:01 | INFO     |   # 1 CAT   | Trend   +71.13 | MA50 $763.00 | MA200 $691.87 | Price $765.16
+2026-02-17 14:03:01 | INFO     |   # 2 DE    | Trend   +48.14 | MA50 $602.38 | MA200 $554.24 | Price $604.77
+2026-02-17 14:03:01 | INFO     |   # 3 FDX   | Trend   +31.12 | MA50 $371.15 | MA200 $340.03 | Price $376.46
+2026-02-17 14:03:01 | INFO     |   # 4 LMT   | Trend   +24.06 | MA50 $639.80 | MA200 $615.74 | Price $650.73
+2026-02-17 14:03:01 | INFO     |   # 5 UNP   | Trend   +18.66 | MA50 $262.00 | MA200 $243.34 | Price $263.40
+2026-02-17 14:03:01 | INFO     |   # 6 REGN  | Trend   +17.15 | MA50 $782.19 | MA200 $765.04 | Price $790.25
+2026-02-17 14:03:01 | INFO     |   # 7 COST  | Trend   +15.98 | MA50 $996.04 | MA200 $980.07 | Price $1013.51
+2026-02-17 14:03:01 | INFO     |   # 8 TMUS  | Trend   +15.74 | MA50 $212.67 | MA200 $196.93 | Price $220.21
+2026-02-17 14:03:01 | INFO     |   # 9 AMGN  | Trend   +12.50 | MA50 $368.12 | MA200 $355.62 | Price $374.00
+2026-02-17 14:03:01 | INFO     |   #10 HON   | Trend   +11.83 | MA50 $242.28 | MA200 $230.45 | Price $244.13
+2026-02-17 14:03:01 | INFO     |   #11 JNJ   | Trend   +10.75 | MA50 $242.18 | MA200 $231.43 | Price $243.70
+2026-02-17 14:03:01 | INFO     |   #12 CME   | Trend   +10.59 | MA50 $303.58 | MA200 $292.99 | Price $303.96
+2026-02-17 14:03:01 | INFO     |   #13 GILD  | Trend    +9.38 | MA50 $152.92 | MA200 $143.54 | Price $154.79
+2026-02-17 14:03:01 | INFO     |   #14 GE    | Trend    +8.84 | MA50 $317.21 | MA200 $308.38 | Price $327.69
+2026-02-17 14:03:01 | INFO     |   #15 LOW   | Trend    +8.76 | MA50 $285.15 | MA200 $276.39 | Price $281.12
+2026-02-17 14:03:01 | INFO     |   #16 MCD   | Trend    +8.67 | MA50 $327.04 | MA200 $318.37 | Price $326.37
+2026-02-17 14:03:01 | INFO     |   #17 PEP   | Trend    +8.67 | MA50 $166.06 | MA200 $157.39 | Price $161.06
+2026-02-17 14:03:01 | INFO     |   #18 NET   | Trend    +8.28 | MA50 $188.48 | MA200 $180.20 | Price $191.99
+2026-02-17 14:03:01 | INFO     |   #19 XOM   | Trend    +7.68 | MA50 $150.23 | MA200 $142.55 | Price $145.64
+2026-02-17 14:03:01 | INFO     |   #20 CVX   | Trend    +7.45 | MA50 $183.00 | MA200 $175.55 | Price $180.76
+2026-02-17 14:03:01 | INFO     | ----------------------------------------------------------------------
+2026-02-17 14:03:07 | INFO     | ======================================================================
+2026-02-17 14:03:07 | INFO     | PORTFOLIO STATUS:
+2026-02-17 14:03:07 | INFO     |   Portfolio value: $999819.59
+2026-02-17 14:03:07 | INFO     |   Buying power:    $1923333.19
+2026-02-17 14:03:07 | INFO     |   Trades today:    0/50
+2026-02-17 14:03:07 | INFO     |   Open positions:
+2026-02-17 14:03:07 | INFO     |     DDOG  | 100 shares @ $122.89 | P&L $-46.00
+2026-02-17 14:03:07 | INFO     |     MU    | 100 shares @ $404.499 | P&L $-86.91
+2026-02-17 14:03:07 | INFO     |     RIVN  | 100 shares @ $16.68 | P&L $1.50
+2026-02-17 14:03:07 | INFO     |     RTX   | 100 shares @ $204.1 | P&L $-49.00
+2026-02-17 14:03:07 | INFO     | Run complete
+2026-02-17 14:03:07 | INFO     | ======================================================================
+2026-02-17 14:03:07 | INFO     | Done.
