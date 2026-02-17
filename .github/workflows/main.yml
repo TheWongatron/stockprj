@@ -1,0 +1,73 @@
+# .github/workflows/trend_bot.yml
+# Trend following bot — auto-trades 100 stocks during market hours
+
+name: Trend Following Bot
+
+on:
+  schedule:
+    - cron: '25 14 * * 1-5'  # 9:25 AM ET every weekday
+
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install alpaca-py pytz requests sortedcontainers
+
+      - name: Restore bot state
+        uses: actions/cache/restore@v4
+        with:
+          path: bot_state.json
+          key: bot-state-${{ github.run_id }}
+          restore-keys: bot-state-
+
+      - name: Run trend bot (loops ~5 hours)
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: timeout --signal=SIGINT 18000 python trend_bot.py --loop || true
+
+      - name: Save bot state
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: bot_state.json
+          key: bot-state-${{ github.run_id }}
+
+      - name: Upload log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bot-log-${{ github.run_id }}
+          path: bot.log
+          retention-days: 7
+
+      - name: Chain next run
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          HOUR=$(date -u +%H)
+          DAY=$(date -u +%u)
+          if [ "$DAY" -le 5 ] && [ "$HOUR" -ge 14 ] && [ "$HOUR" -lt 21 ]; then
+            echo "Market open — chaining next run..."
+            curl -X POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              "https://api.github.com/repos/${{ github.repository }}/actions/workflows/trend_bot.yml/dispatches" \
+              -d '{"ref":"main"}'
+          else
+            echo "Market closed — done."
+          fi
